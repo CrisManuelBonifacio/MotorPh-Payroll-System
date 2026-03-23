@@ -5,11 +5,15 @@ public class MotorPHSystem {
     public static void main(String[] args) throws Exception {
         Scanner sc = new Scanner(System.in);
 
-        File employeeFile = new File("C:\\Users\\bonif\\CSV Folder\\NetBeansProjects\\MotorPHSystem\\employees.csv");
-        File attendanceFile = new File("C:\\Users\\bonif\\CSV Folder\\NetBeansProjects\\MotorPHSystem\\attendance.csv");
+        File employeeFile = new File("C:\\Users\\bonif\\Downloads\\NetBeansProjects\\MotorPHSystem\\employees.csv");
+        File attendanceFile = new File("C:\\Users\\bonif\\Downloads\\NetBeansProjects\\MotorPHSystem\\attendance.csv");
 
         if (!employeeFile.exists() || !attendanceFile.exists()) {
             System.out.println("CSV file not found.");
+            System.out.println("Employee file path: " + employeeFile.getAbsolutePath());
+            System.out.println("Attendance file path: " + attendanceFile.getAbsolutePath());
+            System.out.println("Employee exists: " + employeeFile.exists());
+            System.out.println("Attendance exists: " + attendanceFile.exists());
             return;
         }
 
@@ -19,8 +23,15 @@ public class MotorPHSystem {
         BufferedReader empReader = new BufferedReader(new FileReader(employeeFile));
         empReader.readLine();
         while ((line = empReader.readLine()) != null) {
-            String[] row = line.split(",", -1);
-            if (row.length > 0) employees.put(row[0].trim(), row);
+            if (line.trim().equals("")) continue;
+
+            String[] row = splitCSV(line);
+            if (row.length > 0) {
+                String empNo = clean(row[0]);
+                if (!empNo.equals("")) {
+                    employees.put(empNo, row);
+                }
+            }
         }
         empReader.close();
 
@@ -42,6 +53,11 @@ public class MotorPHSystem {
             String choice = sc.nextLine().trim();
 
             if (choice.equals("2")) {
+                System.out.println("Terminate the program.");
+                return;
+            }
+
+            if (!choice.equals("1")) {
                 System.out.println("Terminate the program.");
                 return;
             }
@@ -71,6 +87,11 @@ public class MotorPHSystem {
             return;
         }
 
+        if (!mainChoice.equals("1")) {
+            System.out.println("Terminate the program.");
+            return;
+        }
+
         System.out.println("1. One employee");
         System.out.println("2. All employees");
         System.out.println("3. Exit the program");
@@ -82,10 +103,16 @@ public class MotorPHSystem {
             return;
         }
 
+        if (!payrollChoice.equals("1") && !payrollChoice.equals("2")) {
+            System.out.println("Terminate the program.");
+            return;
+        }
+
         String targetEmp = "";
         if (payrollChoice.equals("1")) {
             System.out.print("Enter employee number: ");
             targetEmp = sc.nextLine().trim();
+
             if (!employees.containsKey(targetEmp)) {
                 System.out.println("Employee number does not exist.");
                 return;
@@ -99,34 +126,50 @@ public class MotorPHSystem {
         attReader.readLine();
 
         while ((line = attReader.readLine()) != null) {
-            String[] row = line.split(",", -1);
+            if (line.trim().equals("")) continue;
+
+            String[] row = splitCSV(line);
             if (row.length < 6) continue;
 
-            String empNo = row[0].trim();
+            String empNo = clean(row[0]);
             if (!employees.containsKey(empNo)) continue;
             if (payrollChoice.equals("1") && !empNo.equals(targetEmp)) continue;
 
-            String dateText = row[3].trim();
-            String loginText = row[4].trim();
-            String logoutText = row[5].trim();
+            String dateText = get(row, 3);
+            String loginText = get(row, 4);
+            String logoutText = get(row, 5);
 
             if (dateText.equals("") || loginText.equals("") || logoutText.equals("")) continue;
 
             String[] dateParts = dateText.split("[/-]");
-            int month, day;
+            if (dateParts.length < 3) continue;
 
-            if (dateParts[0].length() == 4) {
-                month = Integer.parseInt(dateParts[1]);
-                day = Integer.parseInt(dateParts[2]);
-            } else {
-                month = Integer.parseInt(dateParts[0]);
-                day = Integer.parseInt(dateParts[1]);
+            int month;
+            int day;
+
+            try {
+                if (dateParts[0].trim().length() == 4) {
+                    month = Integer.parseInt(dateParts[1].trim());
+                    day = Integer.parseInt(dateParts[2].trim());
+                } else {
+                    month = Integer.parseInt(dateParts[0].trim());
+                    day = Integer.parseInt(dateParts[1].trim());
+                }
+            } catch (Exception e) {
+                continue;
             }
 
             if (month < 6 || month > 12) continue;
 
-            double inTime = toTime(loginText);
-            double outTime = toTime(logoutText);
+            double inTime;
+            double outTime;
+
+            try {
+                inTime = toTime(loginText);
+                outTime = toTime(logoutText);
+            } catch (Exception e) {
+                continue;
+            }
 
             double start = inTime <= (8 + 5.0 / 60.0) ? 8.0 : inTime;
             double end = outTime >= 17.0 ? 17.0 : outTime;
@@ -134,11 +177,18 @@ public class MotorPHSystem {
 
             if (hours < 0) hours = 0;
 
-            if (!firstCutoffHours.containsKey(empNo)) firstCutoffHours.put(empNo, new double[13]);
-            if (!secondCutoffHours.containsKey(empNo)) secondCutoffHours.put(empNo, new double[13]);
+            if (!firstCutoffHours.containsKey(empNo)) {
+                firstCutoffHours.put(empNo, new double[13]);
+            }
+            if (!secondCutoffHours.containsKey(empNo)) {
+                secondCutoffHours.put(empNo, new double[13]);
+            }
 
-            if (day <= 15) firstCutoffHours.get(empNo)[month] += hours;
-            else secondCutoffHours.get(empNo)[month] += hours;
+            if (day <= 15) {
+                firstCutoffHours.get(empNo)[month] += hours;
+            } else {
+                secondCutoffHours.get(empNo)[month] += hours;
+            }
         }
         attReader.close();
 
@@ -149,7 +199,13 @@ public class MotorPHSystem {
             if (payrollChoice.equals("1") && !empNo.equals(targetEmp)) continue;
 
             String[] emp = employees.get(empNo);
-            double rate = toDouble(emp[emp.length - 1]);
+            double rate;
+
+            try {
+                rate = toDouble(emp[emp.length - 1]);
+            } catch (Exception e) {
+                continue;
+            }
 
             for (int month = 6; month <= 12; month++) {
                 double h1 = firstCutoffHours.containsKey(empNo) ? firstCutoffHours.get(empNo)[month] : 0.0;
@@ -188,18 +244,57 @@ public class MotorPHSystem {
                 System.out.println("Net Salary: " + (gross2 - totalDeductions));
             }
         }
+
+        sc.close();
+    }
+
+    static String[] splitCSV(String line) {
+        List<String> fields = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        boolean inQuotes = false;
+
+        for (int i = 0; i < line.length(); i++) {
+            char c = line.charAt(i);
+
+            if (c == '"') {
+                inQuotes = !inQuotes;
+            } else if (c == ',' && !inQuotes) {
+                fields.add(current.toString());
+                current.setLength(0);
+            } else {
+                current.append(c);
+            }
+        }
+
+        fields.add(current.toString());
+        return fields.toArray(new String[0]);
+    }
+
+    static String clean(String s) {
+        if (s == null) return "";
+        return s.trim().replace("\"", "");
     }
 
     static String get(String[] row, int index) {
-        return index >= 0 && index < row.length ? row[index].trim() : "";
+        return index >= 0 && index < row.length ? clean(row[index]) : "";
     }
 
     static double toDouble(String s) {
-        return Double.parseDouble(s.replace(",", "").trim());
+        s = clean(s).replace(",", "");
+        return Double.parseDouble(s);
     }
 
     static double toTime(String s) {
-        String[] p = s.trim().split(":");
-        return Integer.parseInt(p[0]) + Integer.parseInt(p[1]) / 60.0;
+        s = clean(s);
+
+        String[] p = s.split(":");
+        if (p.length < 2) {
+            throw new NumberFormatException("Invalid time format: " + s);
+        }
+
+        int hour = Integer.parseInt(p[0].trim());
+        int minute = Integer.parseInt(p[1].trim());
+
+        return hour + minute / 60.0;
     }
 }
